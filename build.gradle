@@ -1,0 +1,44 @@
+plugins {
+  id 'java-library'
+  id 'maven-publish'
+}
+
+group = 'com.data'
+version = '0.1.0'
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+  }
+  withJavadocJar()
+  withSourcesJar()
+}
+
+repositories { mavenCentral() }
+
+dependencies {
+  testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}
+
+test {
+  useJUnitPlatform()
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.java
+      pom {
+        name = "Data Retention SDK"
+        description = "A policy-driven retention engine for versioned backups (last N + time-bucket snapshots)."
+        url = "https://github.com/ravi-123/'${project.name}'"
+        licenses {
+          license {
+            name = "MIT License"
+            url = "https://opensource.org/licenses/MIT"
+          }
+        }
+      }
+    }
+  }
+}
