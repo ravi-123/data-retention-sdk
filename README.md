@@ -50,6 +50,7 @@ Your app then deletes versions in `delete`.
 
 ### Always keep last N versions
 `keepLastNVersions = 10` means keep the latest 10 by `versionNumber`.
+NOTE: this is by `versionNumber`, NOT by `timeUtc`. versionNumber must be monotonic increasing numerical values.
 
 ### Tiers = “keep latest per bucket within window”
 Example tiers:
