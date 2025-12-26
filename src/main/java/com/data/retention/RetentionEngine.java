@@ -87,33 +87,60 @@ public final class RetentionEngine {
     return decide(versions, policy, currentVersion, Instant.now());
   }
 
-  private static Set<Long> keepLatestPerFixedBucket(List<? extends VersionRef> versions,
-                                                    Map<Long, VersionRef> byVersion,
-                                                    Instant cutoffUtc,
-                                                    Duration bucket,
-                                                    ZoneId zone) {
-    long bucketSeconds = bucket.getSeconds();
-    if (bucketSeconds <= 0) throw new IllegalArgumentException("Fixed bucket must be >= 1 second");
+  /**
+   * Keep the latest version per fixed time bucket (minute/hour/day) within a time window.
+   *
+   * Example policy:
+   *   window = last 48 hours
+   *   bucket = 1 hour
+   *
+   * Means:
+   *   Look at versions whose editedAt >= (now - 48h)
+   *   Group them into 1-hour buckets
+   *   From each bucket, keep exactly ONE version: the latest edit in that bucket
+   */
+  private static Set<Long> keepLatestPerFixedBucket(
+      List<? extends VersionRef> versions,
+      Map<Long, VersionRef> byVersion,   // versionNumber -> VersionRef (to compare "best" candidates)
+      Instant cutoffUtc,                 // ignore versions older than this
+      Duration bucketSize,               // e.g., 60s, 3600s, 86400s
+      ZoneId bucketZone                  // not used in this epoch-based version; typically UTC
+  ) {
+    long bucketSeconds = bucketSize.getSeconds();
+    if (bucketSeconds <= 0) throw new IllegalArgumentException("bucket must be >= 1 second");
 
-    // Map: bucketKey -> bestVersion
+    // bucketStartEpochSecond -> bestVersionNumberToKeepInThatBucket
     Map<Long, Long> bucketToBestVersion = new HashMap<>();
 
-    for (VersionRef v : versions) {
-      if (v.timeUtc().isBefore(cutoffUtc)) continue;
+    for (VersionRef versionFile : versions) {
+      // versionFile is version ref of the file having versionNumber
+      // and timeUtc(editedAt) of the file (one backup)
 
-      long bucketKey = fixedBucketKey(v.timeUtc(), bucketSeconds, zone);
+      // 1) Skip versions outside the "window"
+      if (versionFile.timeUtc().isBefore(cutoffUtc)) {
+        continue;
+      }
 
-      Long best = bucketToBestVersion.get(bucketKey);
-      if (best == null) {
-        bucketToBestVersion.put(bucketKey, v.versionNumber());
-      } else {
-        VersionRef curBest = byVersion.get(best);
-        if (isBetter(v, curBest)) {
-          bucketToBestVersion.put(bucketKey, v.versionNumber());
-        }
+      // 2) Figure out WHICH bucket this version belongs to
+      //    (bucket key = bucket start time in epoch seconds)
+      long bucketKey = fixedBucketKey(versionFile.timeUtc(), bucketSeconds, bucketZone);
+
+      // 3) If this bucket has no winner yet, set this version as the winner
+      Long bestSoFarVersionNum = bucketToBestVersion.get(bucketKey);
+      if (bestSoFarVersionNum == null) {
+        bucketToBestVersion.put(bucketKey, versionFile.versionNumber());
+        continue;
+      }
+
+      // 4) Otherwise compare this version with the current winner
+      VersionRef bestSoFar = byVersion.get(bestSoFarVersionNum);
+
+      if (isBetter(versionFile, bestSoFar)) {
+        bucketToBestVersion.put(bucketKey, versionFile.versionNumber());
       }
     }
 
+    // 5) Return all winners (one per bucket)
     return new HashSet<>(bucketToBestVersion.values());
   }
 
@@ -126,8 +153,8 @@ public final class RetentionEngine {
     // For UTC, zone doesn't affect epoch seconds.
     // For non-UTC zones, epoch is still absolute; bucket boundaries effectively stay aligned to epoch,
     // which is acceptable for fixed buckets (minute/hour).
-    long sec = t.getEpochSecond();
-    return (sec / bucketSeconds) * bucketSeconds;
+    long epochSecond = t.getEpochSecond();
+    return (epochSecond / bucketSeconds) * bucketSeconds;
   }
 
   private static Set<Long> keepLatestPerCalendarBucket(List<? extends VersionRef> versions,
@@ -177,7 +204,9 @@ public final class RetentionEngine {
   }
 
   /**
-   * "Better" = later timestamp; tie-breaker = higher version number.
+   * "Better" means:
+   * a) later timestamp wins
+   * b) if timestamps tie, higher versionNumber wins"
    */
   private static boolean isBetter(VersionRef candidate, VersionRef currentBest) {
     if (currentBest == null) return true;
