@@ -1,7 +1,7 @@
-package com.data.retention;
+package com.rg.retention;
 
-import com.data.retention.RetentionPolicy.CalendarTier;
-import com.data.retention.RetentionPolicy.FixedTier;
+import com.rg.retention.Models.CalendarTier;
+import com.rg.retention.Models.FixedTier;
 import org.junit.jupiter.api.Test;
 
 import java.time.*;

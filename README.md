@@ -67,8 +67,8 @@ Example tiers:
 ## Example usage
 
 ```java
-import com.data.retention.*;
-import com.data.retention.RetentionPolicy.*;
+import com.rg.retention.*;
+import com.rg.retention.RetentionPolicy.*;
 
 import java.time.*;
 import java.util.List;
