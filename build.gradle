@@ -3,8 +3,8 @@ plugins {
   id 'maven-publish'
 }
 
-group = 'com.data'
-version = '0.1.0'
+group = 'com.rg'
+version = '1.0.0'
 
 java {
   toolchain {
